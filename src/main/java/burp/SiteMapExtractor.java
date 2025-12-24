@@ -504,9 +504,9 @@ public class SiteMapExtractor implements BurpExtension {
     private void exportSiteMapStructured() {
         clearLog();
         
-        boolean exportTree = exportTreeCheckbox.isSelected();
-        boolean exportJsonl = exportJsonlCheckbox.isSelected();
-        boolean exportHar = exportHarCheckbox.isSelected();
+        final boolean exportTree = exportTreeCheckbox.isSelected();
+        final boolean exportJsonl = exportJsonlCheckbox.isSelected();
+        final boolean exportHar = exportHarCheckbox.isSelected();
         
         if (!exportTree && !exportJsonl && !exportHar) {
             JOptionPane.showMessageDialog(mainPanel, "Please select at least one export format.");
@@ -523,17 +523,16 @@ public class SiteMapExtractor implements BurpExtension {
         }
         
         File baseDir = chooser.getSelectedFile();
-        Path exportPath = baseDir.toPath().resolve("sitemap_export_" + System.currentTimeMillis());
-        
-        boolean scopeOnly = isScopeOnly();
-        boolean requireResponse = mustHaveResponseRadio.isSelected();
+        final Path exportPath = baseDir.toPath().resolve("sitemap_export_" + System.currentTimeMillis());
+        final boolean scopeOnly = isScopeOnly();
+        final boolean requireResponse = mustHaveResponseRadio.isSelected();
         
         colNames = new String[]{"Status"};
         tableData = new ArrayList<>();
         tableData.add(new Object[]{"Starting export..."});
         updateLogTable();
         
-        new SwingWorker<ExportResult, String>() {
+        new javax.swing.SwingWorker<ExportResult, String>() {
             @Override
             protected ExportResult doInBackground() throws Exception {
                 Files.createDirectories(exportPath);
@@ -542,7 +541,6 @@ public class SiteMapExtractor implements BurpExtension {
                 List<HttpRequestResponse> siteMapData = siteMap.requestResponses();
                 
                 Map<String, List<HttpRequestResponse>> entriesByDomain = new HashMap<>();
-                int filtered = 0;
                 
                 for (HttpRequestResponse item : siteMapData) {
                     HttpRequest request = item.request();
@@ -567,10 +565,9 @@ public class SiteMapExtractor implements BurpExtension {
                     }
                     
                     entriesByDomain.computeIfAbsent(domain, k -> new ArrayList<>()).add(item);
-                    filtered++;
                 }
                 
-                publish("Found " + filtered + " entries across " + entriesByDomain.size() + " domains");
+                publish("Found " + entriesByDomain.size() + " domains");
                 
                 List<Object[]> results = new ArrayList<>();
                 int totalTree = 0, totalJsonl = 0, totalHar = 0;
@@ -644,7 +641,7 @@ public class SiteMapExtractor implements BurpExtension {
                     tableData.clear();
                     tableData.add(new Object[]{"Export failed: " + e.getMessage()});
                     updateLogTable();
-                    JOptionPane.showMessageDialog(mainPanel, "Error exporting: " + e.getMessage(), 
+                    JOptionPane.showMessageDialog(mainPanel, "Error: " + e.getMessage(), 
                         "Error", JOptionPane.ERROR_MESSAGE);
                     logging.logToError("Export error: " + e.getMessage());
                 }
@@ -660,13 +657,13 @@ public class SiteMapExtractor implements BurpExtension {
         final int harCount;
         final List<Object[]> results;
         
-        ExportResult(Path exportPath, int domainCount, int treeCount, int jsonlCount, int harCount, List<Object[]> results) {
-            this.exportPath = exportPath;
-            this.domainCount = domainCount;
-            this.treeCount = treeCount;
-            this.jsonlCount = jsonlCount;
-            this.harCount = harCount;
-            this.results = results;
+        ExportResult(Path p, int d, int t, int j, int h, List<Object[]> r) {
+            this.exportPath = p;
+            this.domainCount = d;
+            this.treeCount = t;
+            this.jsonlCount = j;
+            this.harCount = h;
+            this.results = r;
         }
     }
     
