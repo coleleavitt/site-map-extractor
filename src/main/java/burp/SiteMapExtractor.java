@@ -501,9 +501,6 @@ public class SiteMapExtractor implements BurpExtension {
         updateLogTable();
     }
     
-    /**
-     * Export site map in structured formats (Tree, JSONL, HAR) - organized by domain
-     */
     private void exportSiteMapStructured() {
         clearLog();
         
@@ -516,7 +513,6 @@ public class SiteMapExtractor implements BurpExtension {
             return;
         }
         
-        // Select export directory
         JFileChooser chooser = new JFileChooser();
         chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
         chooser.setDialogTitle("Select Export Directory");
@@ -529,99 +525,148 @@ public class SiteMapExtractor implements BurpExtension {
         File baseDir = chooser.getSelectedFile();
         Path exportPath = baseDir.toPath().resolve("sitemap_export_" + System.currentTimeMillis());
         
-        try {
-            Files.createDirectories(exportPath);
-            
-            List<HttpRequestResponse> siteMapData = siteMap.requestResponses();
-            boolean requireResponse = mustHaveResponseRadio.isSelected();
-            
-            // Group entries by domain
-            Map<String, List<HttpRequestResponse>> entriesByDomain = new HashMap<>();
-            
-            for (HttpRequestResponse item : siteMapData) {
-                HttpRequest request = item.request();
-                String urlString = request.url();
+        boolean scopeOnly = isScopeOnly();
+        boolean requireResponse = mustHaveResponseRadio.isSelected();
+        
+        colNames = new String[]{"Status"};
+        tableData = new ArrayList<>();
+        tableData.add(new Object[]{"Starting export..."});
+        updateLogTable();
+        
+        new SwingWorker<ExportResult, String>() {
+            @Override
+            protected ExportResult doInBackground() throws Exception {
+                Files.createDirectories(exportPath);
                 
-                if (isScopeOnly() && !scope.isInScope(urlString)) {
-                    continue;
-                }
+                publish("Collecting site map entries...");
+                List<HttpRequestResponse> siteMapData = siteMap.requestResponses();
                 
-                if (requireResponse && item.response() == null) {
-                    continue;
-                }
+                Map<String, List<HttpRequestResponse>> entriesByDomain = new HashMap<>();
+                int filtered = 0;
                 
-                // Extract domain
-                String domain = "unknown_host";
-                try {
-                    URI uri = URI.create(urlString);
-                    if (uri.getHost() != null) {
-                        domain = uri.getHost();
+                for (HttpRequestResponse item : siteMapData) {
+                    HttpRequest request = item.request();
+                    String urlString = request.url();
+                    
+                    if (scopeOnly && !scope.isInScope(urlString)) {
+                        continue;
                     }
+                    
+                    if (requireResponse && item.response() == null) {
+                        continue;
+                    }
+                    
+                    String domain = "unknown_host";
+                    try {
+                        URI uri = URI.create(urlString);
+                        if (uri.getHost() != null) {
+                            domain = uri.getHost();
+                        }
+                    } catch (Exception e) {
+                        // Keep default
+                    }
+                    
+                    entriesByDomain.computeIfAbsent(domain, k -> new ArrayList<>()).add(item);
+                    filtered++;
+                }
+                
+                publish("Found " + filtered + " entries across " + entriesByDomain.size() + " domains");
+                
+                List<Object[]> results = new ArrayList<>();
+                int totalTree = 0, totalJsonl = 0, totalHar = 0;
+                int domainNum = 0;
+                
+                for (Map.Entry<String, List<HttpRequestResponse>> entry : entriesByDomain.entrySet()) {
+                    String domain = entry.getKey();
+                    List<HttpRequestResponse> domainEntries = entry.getValue();
+                    String safeDomain = sanitizePathComponent(domain);
+                    domainNum++;
+                    
+                    publish("Exporting " + domain + " (" + domainNum + "/" + entriesByDomain.size() + ")...");
+                    
+                    Path domainPath = exportPath.resolve(safeDomain);
+                    Files.createDirectories(domainPath);
+                    
+                    if (exportTree) {
+                        Path treePath = domainPath.resolve("tree");
+                        Files.createDirectories(treePath);
+                        int count = exportAsTreeForDomain(domainEntries, treePath);
+                        totalTree += count;
+                        results.add(new Object[]{domain, "Tree", treePath.toString(), count});
+                    }
+                    
+                    if (exportJsonl) {
+                        Path jsonlFile = domainPath.resolve("sitemap.jsonl");
+                        int count = exportAsJsonl(domainEntries, jsonlFile);
+                        totalJsonl += count;
+                        results.add(new Object[]{domain, "JSONL", jsonlFile.toString(), count});
+                    }
+                    
+                    if (exportHar) {
+                        Path harFile = domainPath.resolve("sitemap.har");
+                        int count = exportAsHar(domainEntries, harFile);
+                        totalHar += count;
+                        results.add(new Object[]{domain, "HAR", harFile.toString(), count});
+                    }
+                }
+                
+                return new ExportResult(exportPath, entriesByDomain.size(), totalTree, totalJsonl, totalHar, results);
+            }
+            
+            @Override
+            protected void process(List<String> chunks) {
+                String latest = chunks.get(chunks.size() - 1);
+                tableData.clear();
+                tableData.add(new Object[]{latest});
+                updateLogTable();
+            }
+            
+            @Override
+            protected void done() {
+                try {
+                    ExportResult r = get();
+                    
+                    colNames = new String[]{"Domain", "Format", "Path", "Entries"};
+                    tableData = r.results;
+                    updateLogTable();
+                    
+                    StringBuilder summary = new StringBuilder();
+                    summary.append("Export complete!\n\n");
+                    summary.append("Location: ").append(r.exportPath).append("\n");
+                    summary.append("Domains: ").append(r.domainCount).append("\n\n");
+                    if (exportTree) summary.append("Tree files: ").append(r.treeCount).append("\n");
+                    if (exportJsonl) summary.append("JSONL entries: ").append(r.jsonlCount).append("\n");
+                    if (exportHar) summary.append("HAR entries: ").append(r.harCount).append("\n");
+                    
+                    JOptionPane.showMessageDialog(mainPanel, summary.toString());
+                    
                 } catch (Exception e) {
-                    // Keep default
-                }
-                
-                entriesByDomain.computeIfAbsent(domain, k -> new ArrayList<>()).add(item);
-            }
-            
-            // Export each domain separately
-            colNames = new String[]{"Domain", "Format", "Path", "Entries"};
-            tableData = new ArrayList<>();
-            
-            int totalTree = 0;
-            int totalJsonl = 0;
-            int totalHar = 0;
-            
-            for (Map.Entry<String, List<HttpRequestResponse>> entry : entriesByDomain.entrySet()) {
-                String domain = entry.getKey();
-                List<HttpRequestResponse> domainEntries = entry.getValue();
-                String safeDomain = sanitizePathComponent(domain);
-                
-                Path domainPath = exportPath.resolve(safeDomain);
-                Files.createDirectories(domainPath);
-                
-                // Export Tree for this domain
-                if (exportTree) {
-                    Path treePath = domainPath.resolve("tree");
-                    Files.createDirectories(treePath);
-                    int count = exportAsTreeForDomain(domainEntries, treePath);
-                    totalTree += count;
-                    tableData.add(new Object[]{domain, "Tree", treePath.toString(), count});
-                }
-                
-                // Export JSONL for this domain
-                if (exportJsonl) {
-                    Path jsonlFile = domainPath.resolve("sitemap.jsonl");
-                    int count = exportAsJsonl(domainEntries, jsonlFile);
-                    totalJsonl += count;
-                    tableData.add(new Object[]{domain, "JSONL", jsonlFile.toString(), count});
-                }
-                
-                // Export HAR for this domain
-                if (exportHar) {
-                    Path harFile = domainPath.resolve("sitemap.har");
-                    int count = exportAsHar(domainEntries, harFile);
-                    totalHar += count;
-                    tableData.add(new Object[]{domain, "HAR", harFile.toString(), count});
+                    tableData.clear();
+                    tableData.add(new Object[]{"Export failed: " + e.getMessage()});
+                    updateLogTable();
+                    JOptionPane.showMessageDialog(mainPanel, "Error exporting: " + e.getMessage(), 
+                        "Error", JOptionPane.ERROR_MESSAGE);
+                    logging.logToError("Export error: " + e.getMessage());
                 }
             }
-            
-            updateLogTable();
-            
-            StringBuilder summary = new StringBuilder();
-            summary.append("Export complete!\n\n");
-            summary.append("Location: ").append(exportPath).append("\n");
-            summary.append("Domains: ").append(entriesByDomain.size()).append("\n\n");
-            if (exportTree) summary.append("Tree files: ").append(totalTree).append("\n");
-            if (exportJsonl) summary.append("JSONL entries: ").append(totalJsonl).append("\n");
-            if (exportHar) summary.append("HAR entries: ").append(totalHar).append("\n");
-            
-            JOptionPane.showMessageDialog(mainPanel, summary.toString());
-            
-        } catch (IOException e) {
-            JOptionPane.showMessageDialog(mainPanel, "Error exporting: " + e.getMessage(), 
-                "Error", JOptionPane.ERROR_MESSAGE);
-            logging.logToError("Export error: " + e.getMessage());
+        }.execute();
+    }
+    
+    private static class ExportResult {
+        final Path exportPath;
+        final int domainCount;
+        final int treeCount;
+        final int jsonlCount;
+        final int harCount;
+        final List<Object[]> results;
+        
+        ExportResult(Path exportPath, int domainCount, int treeCount, int jsonlCount, int harCount, List<Object[]> results) {
+            this.exportPath = exportPath;
+            this.domainCount = domainCount;
+            this.treeCount = treeCount;
+            this.jsonlCount = jsonlCount;
+            this.harCount = harCount;
+            this.results = results;
         }
     }
     
