@@ -2,11 +2,12 @@ package burp.util;
 
 public final class JsonUtils {
 
-    private JsonUtils() {}
+    private JsonUtils() {
+    }
 
     public static String escape(String s) {
         if (s == null) return "null";
-        
+
         StringBuilder sb = new StringBuilder("\"");
         for (char c : s.toCharArray()) {
             switch (c) {

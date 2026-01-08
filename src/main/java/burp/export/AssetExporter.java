@@ -35,7 +35,7 @@ public class AssetExporter {
 
                     String fileName = buildFilePath(entry, fileCounters, response);
                     Path filePath = assetsPath.resolve(fileName);
-                    
+
                     Files.createDirectories(filePath.getParent());
                     Files.write(filePath, response.body().getBytes());
 

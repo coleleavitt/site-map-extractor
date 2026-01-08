@@ -90,13 +90,13 @@ public class ExportTab extends JPanel {
 
     private JPanel createScopePanel() {
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        
+
         scopeOnlyRadio = new JRadioButton("In-scope only", true);
         JRadioButton fullSiteMapRadio = new JRadioButton("Full site map", false);
         ButtonGroup scopeGroup = new ButtonGroup();
         scopeGroup.add(scopeOnlyRadio);
         scopeGroup.add(fullSiteMapRadio);
-        
+
         JButton refreshButton = new JButton("Refresh Preview");
         refreshButton.addActionListener(e -> refreshPreview());
 
@@ -122,7 +122,7 @@ public class ExportTab extends JPanel {
 
         JCheckBox[] checkboxes = {filterJsCheckbox, filterCssCheckbox, filterHtmlCheckbox,
                 filterJsonCheckbox, filterImagesCheckbox, filterFontsCheckbox, filterOtherCheckbox};
-        
+
         for (JCheckBox cb : checkboxes) {
             panel.add(cb);
             cb.addActionListener(e -> applyFilters());
@@ -162,9 +162,17 @@ public class ExportTab extends JPanel {
         pathExcludeField.setToolTipText("e.g., /api/*, /graphql, *.map");
 
         DocumentListener filterListener = new DocumentListener() {
-            public void insertUpdate(DocumentEvent e) { applyFilters(); }
-            public void removeUpdate(DocumentEvent e) { applyFilters(); }
-            public void changedUpdate(DocumentEvent e) { applyFilters(); }
+            public void insertUpdate(DocumentEvent e) {
+                applyFilters();
+            }
+
+            public void removeUpdate(DocumentEvent e) {
+                applyFilters();
+            }
+
+            public void changedUpdate(DocumentEvent e) {
+                applyFilters();
+            }
         };
         pathIncludeField.getDocument().addDocumentListener(filterListener);
         pathExcludeField.getDocument().addDocumentListener(filterListener);
@@ -196,7 +204,7 @@ public class ExportTab extends JPanel {
                 return col == 0;
             }
         };
-        
+
         previewTable = new JTable(previewTableModel);
         previewTable.getColumnModel().getColumn(0).setMaxWidth(30);
         previewTable.getColumnModel().getColumn(2).setMaxWidth(60);
@@ -323,7 +331,7 @@ public class ExportTab extends JPanel {
                         path = "/";
                     }
 
-                    entries.add(new SiteMapEntry(item, url, response.statusCode(), 
+                    entries.add(new SiteMapEntry(item, url, response.statusCode(),
                             response.body().length(), contentType, path));
                 }
                 return entries;
@@ -474,7 +482,8 @@ public class ExportTab extends JPanel {
                     try {
                         URI uri = URI.create(e.url());
                         if (uri.getHost() != null) domain = uri.getHost();
-                    } catch (Exception ignored) {}
+                    } catch (Exception ignored) {
+                    }
                     byDomain.computeIfAbsent(domain, k -> new ArrayList<>()).add(e);
                 }
 

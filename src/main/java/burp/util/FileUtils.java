@@ -5,7 +5,8 @@ import burp.api.montoya.http.message.responses.HttpResponse;
 
 public final class FileUtils {
 
-    private FileUtils() {}
+    private FileUtils() {
+    }
 
     public static String sanitize(String s) {
         if (s == null || s.isEmpty()) return "_";

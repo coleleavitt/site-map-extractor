@@ -9,4 +9,5 @@ public record SiteMapEntry(
         long size,
         String contentType,
         String path
-) {}
+) {
+}

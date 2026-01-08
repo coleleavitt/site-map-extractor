@@ -15,12 +15,12 @@ import java.io.StringWriter;
 
 public class SiteMapExtractor implements BurpExtension {
 
-    private static final String VERSION = "3.0.0";
+    private static final String VERSION = "3.1.0";
 
     @Override
     public void initialize(MontoyaApi api) {
         Logging logging = api.logging();
-        
+
         api.extension().setName("Site Map Extractor");
         logging.logToOutput("Loading Site Map Extractor v" + VERSION + " ...");
 
@@ -31,8 +31,8 @@ public class SiteMapExtractor implements BurpExtension {
 
                 JTabbedPane tabbedPane = new JTabbedPane();
                 tabbedPane.addTab("Export Assets", new ExportTab(logging, api.siteMap(), api.scope()));
-                tabbedPane.addTab("Extract Links", new LinksTab());
-                tabbedPane.addTab("Response Codes", new CodesTab());
+                tabbedPane.addTab("Extract Links", new LinksTab(logging, api.siteMap(), api.scope()));
+                tabbedPane.addTab("Response Codes", new CodesTab(logging, api.siteMap(), api.scope()));
 
                 mainPanel.add(tabbedPane, BorderLayout.CENTER);
                 api.userInterface().registerSuiteTab("Site Map Extractor", mainPanel);
